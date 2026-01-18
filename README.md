@@ -1,5 +1,13 @@
 # AI Medical Diagnosis System
 
+Data set 
+import kagglehub
+
+# Download latest version
+path = kagglehub.dataset_download("choongqianzheng/disease-and-symptoms-dataset")
+
+print("Path to dataset files:", path)
+
 A ChatGPT-like medical diagnosis system with natural language understanding, enhanced with Kaggle dataset integration. Provides conversational symptom analysis, natural remedy suggestions, and medical precautions.
 
 ## 🚀 Quick Start
