@@ -42,6 +42,12 @@ python main.py "stomach pain and nausea"
 
 # Run tests
 python test_system.py
+
+# Update with latest Kaggle dataset
+python update_dataset.py
+
+# Download Kaggle dataset for exploration
+python download_kaggle_dataset.py
 ```
 
 ## 💡 Tips
@@ -50,3 +56,4 @@ python test_system.py
 - Be specific about symptoms for better diagnosis
 - Emergency symptoms (chest pain, difficulty breathing) trigger special alerts
 - The system recognizes 161 different symptoms and 41 medical conditions
+- Update dataset periodically for the latest medical data

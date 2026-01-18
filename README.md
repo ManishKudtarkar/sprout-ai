@@ -74,6 +74,10 @@ Based on your symptoms, this could be a medical emergency. Please:
 ## 📦 Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/ManishKudtarkar/sprout-ai.git
+cd sprout-ai
+
 # Install dependencies
 pip install -r requirements.txt
 
@@ -83,6 +87,24 @@ python test_system.py
 # Start using
 python chatgpt_interface.py
 ```
+
+## 🔄 Dataset Management
+
+The system comes with pre-loaded data, but you can update it with the latest Kaggle dataset:
+
+### **Update System Data** (Recommended)
+```bash
+# Download and integrate latest Kaggle dataset
+python update_dataset.py
+```
+
+### **Just Download Dataset** (For exploration)
+```bash
+# Download dataset to explore manually
+python download_kaggle_dataset.py
+```
+
+**Note**: You'll need Kaggle API credentials configured. Visit [Kaggle API Documentation](https://www.kaggle.com/docs/api) for setup instructions.
 
 ## 📁 Project Structure
 
@@ -100,6 +122,8 @@ python chatgpt_interface.py
 ├── chatgpt_interface.py    # ChatGPT-like interface
 ├── web_interface.py        # Web interface
 ├── main.py                 # Simple CLI
+├── update_dataset.py       # Kaggle dataset updater
+├── download_kaggle_dataset.py  # Simple dataset downloader
 └── test_system.py          # Tests
 ```
 
