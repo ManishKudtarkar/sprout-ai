@@ -14,10 +14,10 @@ jobs:
         python-version: [3.8, 3.9, '3.10', '3.11']
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -26,14 +26,22 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Run tests
+    - name: Run basic tests
       run: |
         python test_system.py
+    
+    - name: Run advanced features tests
+      run: |
+        python test_advanced_features.py
     
     - name: Test ChatGPT interface
       run: |
         python chatgpt_interface.py "test fever and headache"
     
-    - name: Test main interface
+    - name: Test main interface (simple)
       run: |
         python main.py "test stomach pain"
+    
+    - name: Test main interface (advanced)
+      run: |
+        python main.py --advanced "test headache and nausea"
