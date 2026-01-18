@@ -155,18 +155,58 @@ HTML_TEMPLATE = """
             margin: 5px 0;
             padding-left: 20px;
         }
+        .mode-selector {
+            margin-top: 15px;
+            text-align: center;
+        }
+        .mode-button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            border: 2px solid #007bff;
+            background-color: white;
+            color: #007bff;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .mode-button.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .mode-button:hover {
+            background-color: #0056b3;
+            color: white;
+        }
+        .advanced-info {
+            background-color: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 14px;
+            color: #1565c0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏥 AI Medical Assistant</h1>
-            <p>Describe your symptoms and get natural remedy suggestions</p>
+            <h1>🏥 AI Medical Assistant (Enhanced)</h1>
+            <p>Advanced symptom analysis with differential diagnosis and comprehensive treatment plans</p>
+            <div class="mode-selector">
+                <button class="mode-button" id="simpleMode" onclick="setMode('simple')">Simple Mode</button>
+                <button class="mode-button active" id="advancedMode" onclick="setMode('advanced')">Advanced Mode</button>
+            </div>
         </div>
         
         <div class="chat-container" id="chatContainer">
             <div class="message bot-message">
-                Hello! I'm your AI medical assistant. I can help analyze symptoms, suggest natural remedies, and provide health guidance. Please describe your symptoms or how you're feeling.
+                Hello! I'm your AI medical assistant with advanced diagnosis capabilities. I can help analyze symptoms, suggest natural remedies, and provide comprehensive health guidance.
+                <div class="advanced-info" id="modeInfo">
+                    🔬 <strong>Advanced Mode:</strong> Provides detailed differential diagnosis, multiple treatment options, and comprehensive analysis.
+                </div>
+                Please describe your symptoms or how you're feeling.
             </div>
         </div>
         
@@ -176,7 +216,7 @@ HTML_TEMPLATE = """
         
         <div class="input-container">
             <input type="text" class="input-field" id="userInput" 
-                   placeholder="Describe your symptoms (e.g., 'I have a headache and fever')" 
+                   placeholder="Describe your symptoms (e.g., 'I have a headache and fever for 3 days')" 
                    onkeypress="handleKeyPress(event)">
             <button class="send-button" id="sendButton" onclick="sendMessage()">Send</button>
             <button class="clear-button" id="clearButton" onclick="clearConversation()">Clear</button>
@@ -188,23 +228,49 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
+        let currentMode = 'advanced';
+        
+        function setMode(mode) {
+            currentMode = mode;
+            
+            // Update button states
+            document.getElementById('simpleMode').classList.remove('active');
+            document.getElementById('advancedMode').classList.remove('active');
+            document.getElementById(mode + 'Mode').classList.add('active');
+            
+            // Update mode info
+            const modeInfo = document.getElementById('modeInfo');
+            if (mode === 'advanced') {
+                modeInfo.innerHTML = '🔬 <strong>Advanced Mode:</strong> Provides detailed differential diagnosis, multiple treatment options, and comprehensive analysis.';
+            } else {
+                modeInfo.innerHTML = '✅ <strong>Simple Mode:</strong> Provides straightforward symptom analysis and natural remedies.';
+            }
+            
+            // Send mode change to backend
+            sendMessage(mode + ' mode');
+        }
+
         function handleKeyPress(event) {
             if (event.key === 'Enter') {
                 sendMessage();
             }
         }
 
-        async function sendMessage() {
+        async function sendMessage(overrideMessage = null) {
             const input = document.getElementById('userInput');
-            const message = input.value.trim();
+            const message = overrideMessage || input.value.trim();
             
             if (!message) return;
             
-            // Add user message to chat
-            addMessage(message, 'user');
+            // Add user message to chat (only if not a mode change)
+            if (!overrideMessage) {
+                addMessage(message, 'user');
+            }
             
             // Clear input and disable button
-            input.value = '';
+            if (!overrideMessage) {
+                input.value = '';
+            }
             document.getElementById('sendButton').disabled = true;
             document.getElementById('loading').style.display = 'block';
             
@@ -215,23 +281,30 @@ HTML_TEMPLATE = """
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ 
+                        message: message,
+                        mode: currentMode 
+                    })
                 });
                 
                 const result = await response.json();
                 
-                // Add bot response
-                if (result.type === 'error') {
-                    addMessage(result.response, 'bot');
-                } else {
-                    // Check if it's an emergency in the response text
-                    const isEmergency = result.response.includes('🚨') || result.response.includes('URGENT') || result.response.includes('EMERGENCY');
-                    addMessage(result.response, 'bot', isEmergency);
+                // Add bot response (only if not a mode change)
+                if (!overrideMessage) {
+                    if (result.type === 'error') {
+                        addMessage(result.response, 'bot');
+                    } else {
+                        // Check if it's an emergency in the response text
+                        const isEmergency = result.response.includes('🚨') || result.response.includes('URGENT') || result.response.includes('EMERGENCY');
+                        addMessage(result.response, 'bot', isEmergency);
+                    }
                 }
                 
             } catch (error) {
                 console.error('Error:', error);
-                addMessage('Sorry, I encountered an error analyzing your symptoms. Please try again.', 'bot');
+                if (!overrideMessage) {
+                    addMessage('Sorry, I encountered an error analyzing your symptoms. Please try again.', 'bot');
+                }
             }
             
             // Re-enable button and hide loading
@@ -251,9 +324,9 @@ HTML_TEMPLATE = """
             
             // Format text with basic markdown-like formatting
             const formattedText = text
-                .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')
-                .replace(/\\*(.*?)\\*/g, '<em>$1</em>')
-                .replace(/\\n/g, '<br>');
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
             
             messageDiv.innerHTML = formattedText;
             chatContainer.appendChild(messageDiv);
@@ -266,9 +339,17 @@ HTML_TEMPLATE = """
             try {
                 // Clear the chat container
                 const chatContainer = document.getElementById('chatContainer');
+                const modeInfo = currentMode === 'advanced' 
+                    ? '🔬 <strong>Advanced Mode:</strong> Provides detailed differential diagnosis, multiple treatment options, and comprehensive analysis.'
+                    : '✅ <strong>Simple Mode:</strong> Provides straightforward symptom analysis and natural remedies.';
+                
                 chatContainer.innerHTML = `
                     <div class="message bot-message">
-                        Hello! I'm your AI medical assistant. I can help analyze symptoms, suggest natural remedies, and provide health guidance. Please describe your symptoms or how you're feeling.
+                        Hello! I'm your AI medical assistant with advanced diagnosis capabilities. I can help analyze symptoms, suggest natural remedies, and provide comprehensive health guidance.
+                        <div class="advanced-info" id="modeInfo">
+                            ${modeInfo}
+                        </div>
+                        Please describe your symptoms or how you're feeling.
                     </div>
                 `;
                 

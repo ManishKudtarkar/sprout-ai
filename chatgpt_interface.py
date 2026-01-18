@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
 ChatGPT-like Medical Diagnosis Interface
-Natural conversational AI for symptom analysis
+Natural conversational AI for symptom analysis with advanced diagnosis
 """
 
 import sys
 import re
 from typing import Dict
-from ai_engine import analyze_symptoms
+from ai_engine import analyze_symptoms, advanced_analyze_symptoms, comprehensive_symptom_check
 from ai_engine.nlp_processor import SymptomNLPProcessor
 
 class MedicalChatBot:
-    """ChatGPT-like medical diagnosis chatbot."""
+    """ChatGPT-like medical diagnosis chatbot with advanced features."""
     
     def __init__(self):
         self.nlp_processor = SymptomNLPProcessor()
@@ -19,12 +19,27 @@ class MedicalChatBot:
         self.user_context = {}
         self.last_diagnosis = None  # Track last diagnosis for context
         self.current_symptoms = []  # Track current symptoms being discussed
+        self.advanced_mode = False  # Toggle for advanced diagnosis
+        self.symptom_check_session = None  # For comprehensive symptom checking
         
     def process_user_input(self, user_input: str) -> str:
         """Process user input and generate ChatGPT-like response."""
         
         # Store conversation
         self.conversation_history.append({"role": "user", "content": user_input})
+        
+        # Check for mode switching commands
+        if user_input.lower().strip() in ['advanced', 'advanced mode', 'detailed analysis']:
+            self.advanced_mode = True
+            response = "🔬 **Advanced Mode Activated!**\n\nI'll now provide detailed differential diagnosis with multiple possible conditions, comprehensive treatment plans, and guided symptom checking.\n\nPlease describe your symptoms for advanced analysis."
+            self.conversation_history.append({"role": "assistant", "content": response})
+            return response
+        
+        if user_input.lower().strip() in ['simple', 'simple mode', 'basic']:
+            self.advanced_mode = False
+            response = "✅ **Simple Mode Activated**\n\nI'll provide straightforward symptom analysis and natural remedies.\n\nHow can I help you today?"
+            self.conversation_history.append({"role": "assistant", "content": response})
+            return response
         
         # Check if this is a follow-up response to a previous question
         response = self._handle_follow_up_context(user_input)
@@ -37,7 +52,7 @@ class MedicalChatBot:
         
         # Handle different types of input
         if nlp_result["type"] == "greeting":
-            response = nlp_result["response"]
+            response = nlp_result["response"] + "\n\n💡 **Tip:** Type 'advanced' for detailed analysis or 'simple' for basic mode."
             
         elif nlp_result["type"] == "system_info":
             response = nlp_result["response"]
@@ -53,25 +68,147 @@ class MedicalChatBot:
             # Store current symptoms for context
             self.current_symptoms = nlp_result["symptoms"]
             
-            # Analyze symptoms
-            symptoms_text = nlp_result["normalized_text"]
-            diagnosis_result = analyze_symptoms(symptoms_text)
-            
-            # Store last diagnosis for follow-up context
-            self.last_diagnosis = diagnosis_result
-            
-            # Generate conversational response
-            response = self.nlp_processor.generate_conversational_response(diagnosis_result)
-            
-            # Add context-aware follow-up
-            if not diagnosis_result.get("emergency", {}).get("emergency"):
-                response += self._generate_follow_up_questions(diagnosis_result)
+            # Choose analysis method based on mode
+            if self.advanced_mode:
+                response = self._handle_advanced_analysis(nlp_result["normalized_text"])
+            else:
+                response = self._handle_simple_analysis(nlp_result["normalized_text"])
         
         else:
-            response = "I'm here to help with your health concerns. Please describe your symptoms and I'll do my best to provide helpful information."
+            response = "I'm here to help with your health concerns. Please describe your symptoms and I'll do my best to provide helpful information.\n\n💡 **Tip:** Type 'advanced' for detailed analysis with multiple diagnoses."
         
         # Store response
         self.conversation_history.append({"role": "assistant", "content": response})
+        
+        return response
+    
+    def _handle_simple_analysis(self, symptoms_text: str) -> str:
+        """Handle simple symptom analysis."""
+        # Analyze symptoms
+        diagnosis_result = analyze_symptoms(symptoms_text)
+        
+        # Store last diagnosis for follow-up context
+        self.last_diagnosis = diagnosis_result
+        
+        # Generate conversational response
+        response = self.nlp_processor.generate_conversational_response(diagnosis_result)
+        
+        # Add context-aware follow-up
+        if not diagnosis_result.get("emergency", {}).get("emergency"):
+            response += self._generate_follow_up_questions(diagnosis_result)
+        
+        return response
+    
+    def _handle_advanced_analysis(self, symptoms_text: str) -> str:
+        """Handle advanced symptom analysis with differential diagnosis."""
+        # Perform advanced analysis
+        advanced_result = advanced_analyze_symptoms(symptoms_text)
+        
+        if advanced_result["type"] == "emergency":
+            response = "🚨 **MEDICAL EMERGENCY DETECTED** 🚨\n\n"
+            response += f"**Condition:** {advanced_result['emergency'].get('suspected_condition', 'Critical')}\n"
+            response += f"**Urgency:** {advanced_result['emergency']['level'].upper()}\n"
+            response += f"**Action Required:** {advanced_result['emergency']['message']}\n\n"
+            
+            if advanced_result.get('emergency_remedies'):
+                emergency_remedies = advanced_result['emergency_remedies']
+                if emergency_remedies.get('immediate_actions'):
+                    response += "**Immediate Actions:**\n"
+                    for action in emergency_remedies['immediate_actions']:
+                        response += f"• {action}\n"
+                    response += f"\n⚠️ {emergency_remedies.get('warning', '')}"
+            
+            return response
+        
+        elif advanced_result["type"] == "unknown":
+            response = f"🤔 **Analysis Result:** {advanced_result['message']}\n\n"
+            
+            if advanced_result.get('extracted_symptoms'):
+                response += f"**Symptoms I detected:** {', '.join(advanced_result['extracted_symptoms'])}\n\n"
+            
+            if advanced_result.get('suggestions'):
+                response += "**Common symptoms I can analyze:**\n"
+                for suggestion in advanced_result['suggestions']:
+                    response += f"• {suggestion}\n"
+            
+            return response
+        
+        elif advanced_result["type"] == "advanced_diagnosis":
+            return self._format_advanced_diagnosis(advanced_result)
+        
+        return "I encountered an issue with the advanced analysis. Please try again."
+    
+    def _format_advanced_diagnosis(self, advanced_result: Dict) -> str:
+        """Format advanced diagnosis results for display."""
+        response = "🔬 **Advanced Medical Analysis**\n\n"
+        
+        # Primary diagnosis
+        primary = advanced_result['primary_diagnosis']
+        response += f"**Primary Diagnosis:** {primary['condition'].title()}\n"
+        response += f"**Confidence Level:** {primary['confidence'].title()}"
+        
+        if 'score' in primary:
+            response += f" ({primary['score']:.1%})"
+        response += "\n\n"
+        
+        # Matching symptoms
+        if primary.get('matching_symptoms'):
+            response += f"**Your symptoms that match:** {', '.join(primary['matching_symptoms'])}\n\n"
+        
+        # Differential diagnosis
+        if advanced_result.get('differential_diagnosis'):
+            response += "**Alternative Possibilities:**\n"
+            for i, alt_diagnosis in enumerate(advanced_result['differential_diagnosis'][:2], 1):
+                response += f"{i}. {alt_diagnosis['disease'].title()} (confidence: {alt_diagnosis['confidence']})\n"
+            response += "\n"
+        
+        # Treatment plan
+        treatment = advanced_result.get('treatment_plan', {})
+        
+        # Natural remedies
+        if treatment.get('natural_remedies'):
+            response += "🌿 **Recommended Natural Remedies:**\n"
+            for i, remedy in enumerate(treatment['natural_remedies'][:3], 1):
+                response += f"{i}. **{remedy['remedy']}**\n"
+                response += f"   • Benefit: {remedy['benefit']}\n"
+                response += f"   • How it works: {remedy['explanation']}\n"
+                if 'usage' in remedy:
+                    response += f"   • Usage: {remedy['usage']}\n"
+                response += "\n"
+        
+        # Lifestyle recommendations
+        if treatment.get('lifestyle_recommendations'):
+            response += "🏃 **Lifestyle Recommendations:**\n"
+            for rec in treatment['lifestyle_recommendations'][:4]:
+                response += f"• {rec}\n"
+            response += "\n"
+        
+        # Dietary recommendations
+        if treatment.get('dietary_recommendations'):
+            dietary = treatment['dietary_recommendations']
+            if dietary.get('foods_to_include'):
+                response += "🥗 **Foods to Include:**\n"
+                response += f"• {', '.join(dietary['foods_to_include'][:5])}\n\n"
+        
+        # Medical precautions
+        if treatment.get('medical_precautions'):
+            response += "⚠️ **Important Precautions:**\n"
+            for precaution in treatment['medical_precautions'][:3]:
+                response += f"• {precaution}\n"
+            response += "\n"
+        
+        # Analysis summary
+        response += f"**Analysis Summary:** Analyzed {advanced_result.get('total_symptoms_analyzed', 0)} symptoms\n\n"
+        
+        # Disclaimer
+        response += "**Important Note:** This is preliminary guidance based on symptom analysis. Please consult with a healthcare professional for proper medical diagnosis and treatment, especially if symptoms persist or worsen.\n\n"
+        
+        # Follow-up options
+        response += "**What would you like to know more about?**\n"
+        response += "• Ask about specific remedies or treatments\n"
+        response += "• Get more details about your condition\n"
+        response += "• Discuss lifestyle changes\n"
+        response += "• Type 'comprehensive check' for guided symptom analysis"
         
         return response
     
@@ -225,12 +362,18 @@ Is there anything else about your current condition you'd like to discuss?"""
 def chat_interface():
     """Main chat interface like ChatGPT."""
     
-    print("🏥 AI Medical Assistant - ChatGPT Style")
-    print("=" * 50)
-    print("Hello! I'm your AI medical assistant. I can help analyze symptoms,")
-    print("suggest natural remedies, and provide health guidance.")
+    print("🏥 AI Medical Assistant - ChatGPT Style (Enhanced)")
+    print("=" * 60)
+    print("Hello! I'm your AI medical assistant with advanced diagnosis capabilities.")
+    print("I can help analyze symptoms, suggest natural remedies, and provide health guidance.")
+    print()
+    print("💡 **New Features:**")
+    print("• Type 'advanced' for detailed differential diagnosis")
+    print("• Type 'simple' for basic symptom analysis")
+    print("• Type 'comprehensive check' for guided symptom analysis")
+    print()
     print("Type 'quit', 'exit', or 'bye' to end our conversation.")
-    print("=" * 50)
+    print("=" * 60)
     
     chatbot = MedicalChatBot()
     
