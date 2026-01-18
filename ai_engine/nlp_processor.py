@@ -156,38 +156,58 @@ class SymptomNLPProcessor:
             if synonym in normalized_text:
                 normalized_text = normalized_text.replace(synonym, standard)
         
-        # Direct symptom matching from our database
+        # Direct symptom matching from our database (prioritize exact matches)
         from .symptoms import SYMPTOM_MAP
         for symptom in SYMPTOM_MAP.keys():
             if symptom in normalized_text:
                 symptoms.append(symptom)
         
-        # Enhanced symptom extraction patterns
-        symptom_patterns = [
-            r"i have (?:a |an |some |really |very |quite |pretty |)?(?:bad |severe |terrible |awful |mild |slight |little |minor |)?(.*?)(?:\s+and|\s*,|\s*$|\s+that|\s+which)",
-            r"i'm feeling (.*?)(?:\s+and|\s*,|\s*$)",
-            r"experiencing (.*?)(?:\s+and|\s*,|\s*$)",
-            r"my (.*?) (?:hurts?|aches?|is sore|feels? bad|feels? terrible|really hurts?)",
-            r"(headache|fever|nausea|vomiting|cough|pain|ache|sick|hurt|hurts)",
-            r"feeling (nauseous|sick|dizzy|tired|weak|feverish)",
-            r"(itching|burning|throbbing|sharp|dull) (?:pain|sensation|feeling)",
-            r"(?:really |very |quite |)?(sick|nauseous|hurt|pain|ache|fever|headache|cough)",
-            r"stomach (?:really |very |)?(?:hurts?|aches?|pain)",
-            r"feel (?:really |very |)?sick"
-        ]
+        # If no direct matches found, try more aggressive extraction
+        if not symptoms:
+            # Check if the entire input is a single symptom or close to it
+            cleaned_input = normalized_text.strip().lower()
+            
+            # Direct match check
+            if cleaned_input in SYMPTOM_MAP:
+                symptoms.append(cleaned_input)
+            else:
+                # Partial matching for single words
+                words = cleaned_input.split()
+                if len(words) == 1:
+                    word = words[0]
+                    # Check if this word is part of any known symptom
+                    for symptom in SYMPTOM_MAP.keys():
+                        if word in symptom.split():
+                            symptoms.append(symptom)
+                            break
         
-        for pattern in symptom_patterns:
-            matches = re.findall(pattern, normalized_text, re.IGNORECASE)
-            for match in matches:
-                if isinstance(match, tuple):
-                    match = match[0] if match[0] else match[1] if len(match) > 1 else ""
-                
-                cleaned = self._clean_symptom_text(match.strip())
-                if cleaned and len(cleaned.split()) <= 4:
-                    # Map common terms to our symptom database
-                    mapped_symptom = self._map_to_known_symptoms(cleaned)
-                    if mapped_symptom:
-                        symptoms.extend(mapped_symptom)
+        # Enhanced symptom extraction patterns
+        if not symptoms:
+            symptom_patterns = [
+                r"i have (?:a |an |some |really |very |quite |pretty |)?(?:bad |severe |terrible |awful |mild |slight |little |minor |)?(.*?)(?:\s+and|\s*,|\s*$|\s+that|\s+which)",
+                r"i'm feeling (.*?)(?:\s+and|\s*,|\s*$)",
+                r"experiencing (.*?)(?:\s+and|\s*,|\s*$)",
+                r"my (.*?) (?:hurts?|aches?|is sore|feels? bad|feels? terrible|really hurts?)",
+                r"(headache|fever|nausea|vomiting|cough|pain|ache|sick|hurt|hurts)",
+                r"feeling (nauseous|sick|dizzy|tired|weak|feverish)",
+                r"(itching|burning|throbbing|sharp|dull) (?:pain|sensation|feeling)",
+                r"(?:really |very |quite |)?(sick|nauseous|hurt|pain|ache|fever|headache|cough)",
+                r"stomach (?:really |very |)?(?:hurts?|aches?|pain)",
+                r"feel (?:really |very |)?sick"
+            ]
+            
+            for pattern in symptom_patterns:
+                matches = re.findall(pattern, normalized_text, re.IGNORECASE)
+                for match in matches:
+                    if isinstance(match, tuple):
+                        match = match[0] if match[0] else match[1] if len(match) > 1 else ""
+                    
+                    cleaned = self._clean_symptom_text(match.strip())
+                    if cleaned and len(cleaned.split()) <= 4:
+                        # Map common terms to our symptom database
+                        mapped_symptom = self._map_to_known_symptoms(cleaned)
+                        if mapped_symptom:
+                            symptoms.extend(mapped_symptom)
         
         # Special case handling for complex phrases
         if "stomach" in normalized_text and ("hurt" in normalized_text or "pain" in normalized_text):
@@ -292,6 +312,21 @@ class SymptomNLPProcessor:
     
     def _generate_clarification_response(self, text: str) -> str:
         """Generate helpful clarification response."""
+        
+        # If user typed a single word that might be a symptom, be more helpful
+        if len(text.split()) == 1:
+            word = text.lower().strip()
+            
+            # Check if it's a known symptom
+            from .symptoms import SYMPTOM_MAP
+            if word in SYMPTOM_MAP:
+                return f"I see you mentioned '{word}'. Let me analyze that for you. For a more complete assessment, you could also tell me about any other symptoms you're experiencing."
+            
+            # Check if it's a partial symptom match
+            partial_matches = [symptom for symptom in SYMPTOM_MAP.keys() if word in symptom]
+            if partial_matches:
+                return f"I see you mentioned '{word}'. This could relate to: {', '.join(partial_matches[:3])}. Could you be more specific about your symptoms?"
+        
         responses = [
             "I'd like to help you better. Could you describe your symptoms more specifically?",
             "To provide accurate information, please tell me what specific symptoms you're experiencing.",

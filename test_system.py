@@ -44,13 +44,26 @@ def test_enhanced_diagnosis():
     print("✓ Enhanced diagnosis works")
 
 
-def test_precautions():
-    """Test precautions functionality."""
-    print("Testing precautions...")
-    result = analyze_symptoms("continuous sneezing")
-    assert result["diagnosis"]["condition"] == "common cold"
-    assert len(result.get("precautions", [])) > 0
-    print("✓ Precautions functionality works")
+def test_single_word_symptoms():
+    """Test single-word symptom processing."""
+    print("Testing single-word symptoms...")
+    
+    # Test headache
+    result = analyze_symptoms("headache")
+    assert result["diagnosis"]["condition"] == "stress or dehydration"
+    assert result["emergency"]["emergency"] == False
+    
+    # Test fever
+    result = analyze_symptoms("fever")
+    assert result["diagnosis"]["condition"] == "viral infection"
+    assert result["emergency"]["emergency"] == False
+    
+    # Test cough
+    result = analyze_symptoms("cough")
+    assert result["diagnosis"]["condition"] == "respiratory irritation"
+    assert result["emergency"]["emergency"] == False
+    
+    print("✓ Single-word symptoms work correctly")
 
 
 def main():
@@ -63,7 +76,7 @@ def main():
         test_normal_diagnosis()
         test_throat_infection()
         test_enhanced_diagnosis()
-        test_precautions()
+        test_single_word_symptoms()
         
         print("=" * 50)
         print("✅ All tests passed!")

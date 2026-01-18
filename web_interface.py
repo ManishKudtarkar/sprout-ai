@@ -204,7 +204,8 @@ HTML_TEMPLATE = """
                 addMessage(result.response, 'bot', result.type === 'medical_analysis' && result.diagnosis_result?.emergency?.emergency);
                 
             } catch (error) {
-                addMessage('Sorry, I encountered an error. Please try again.', 'bot');
+                console.error('Error:', error);
+                addMessage('Sorry, I encountered an error analyzing your symptoms. Please try again.', 'bot');
             }
             
             // Re-enable button and hide loading
