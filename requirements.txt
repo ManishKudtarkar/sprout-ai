@@ -1,0 +1,9 @@
+# AI Medical Diagnosis System Requirements
+
+# Core dependencies
+pandas>=2.0.0
+kagglehub>=0.3.0
+flask>=2.0.0
+
+# Optional dependencies for enhanced functionality
+numpy>=1.20.0
