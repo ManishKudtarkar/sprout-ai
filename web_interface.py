@@ -5,15 +5,21 @@ ChatGPT-like web interface using Flask
 """
 
 try:
-    from flask import Flask, render_template, request, jsonify
+    from flask import Flask, render_template, request, jsonify, session
     FLASK_AVAILABLE = True
 except ImportError:
     FLASK_AVAILABLE = False
 
 from ai_engine import analyze_symptoms_conversational
+from chatgpt_interface import MedicalChatBot
 import json
+import uuid
 
 app = Flask(__name__)
+app.secret_key = 'medical_diagnosis_secret_key_2024'  # For session management
+
+# Store chatbot instances per session
+chatbot_sessions = {}
 
 # HTML template as string (to avoid needing separate template files)
 HTML_TEMPLATE = """
@@ -106,6 +112,19 @@ HTML_TEMPLATE = """
             background-color: #ccc;
             cursor: not-allowed;
         }
+        .clear-button {
+            padding: 12px 20px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 10px;
+        }
+        .clear-button:hover {
+            background-color: #545b62;
+        }
         .disclaimer {
             background-color: #fff3cd;
             border: 1px solid #ffeaa7;
@@ -160,6 +179,7 @@ HTML_TEMPLATE = """
                    placeholder="Describe your symptoms (e.g., 'I have a headache and fever')" 
                    onkeypress="handleKeyPress(event)">
             <button class="send-button" id="sendButton" onclick="sendMessage()">Send</button>
+            <button class="clear-button" id="clearButton" onclick="clearConversation()">Clear</button>
         </div>
         
         <div class="disclaimer">
@@ -201,7 +221,13 @@ HTML_TEMPLATE = """
                 const result = await response.json();
                 
                 // Add bot response
-                addMessage(result.response, 'bot', result.type === 'medical_analysis' && result.diagnosis_result?.emergency?.emergency);
+                if (result.type === 'error') {
+                    addMessage(result.response, 'bot');
+                } else {
+                    // Check if it's an emergency in the response text
+                    const isEmergency = result.response.includes('🚨') || result.response.includes('URGENT') || result.response.includes('EMERGENCY');
+                    addMessage(result.response, 'bot', isEmergency);
+                }
                 
             } catch (error) {
                 console.error('Error:', error);
@@ -225,15 +251,41 @@ HTML_TEMPLATE = """
             
             // Format text with basic markdown-like formatting
             const formattedText = text
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/\n/g, '<br>');
+                .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')
+                .replace(/\\*(.*?)\\*/g, '<em>$1</em>')
+                .replace(/\\n/g, '<br>');
             
             messageDiv.innerHTML = formattedText;
             chatContainer.appendChild(messageDiv);
             
             // Scroll to bottom
             chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function clearConversation() {
+            try {
+                // Clear the chat container
+                const chatContainer = document.getElementById('chatContainer');
+                chatContainer.innerHTML = `
+                    <div class="message bot-message">
+                        Hello! I'm your AI medical assistant. I can help analyze symptoms, suggest natural remedies, and provide health guidance. Please describe your symptoms or how you're feeling.
+                    </div>
+                `;
+                
+                // Clear the session on the server
+                await fetch('/clear_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                // Focus on input
+                document.getElementById('userInput').focus();
+                
+            } catch (error) {
+                console.error('Error clearing conversation:', error);
+            }
         }
 
         // Focus input on page load
@@ -250,21 +302,57 @@ def index():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    """Analyze symptoms endpoint."""
+    """Analyze symptoms endpoint with session management."""
     try:
         data = request.get_json()
         user_message = data.get('message', '')
         
-        # Process with conversational AI
-        result = analyze_symptoms_conversational(user_message)
+        # Get or create session ID
+        if 'session_id' not in session:
+            session['session_id'] = str(uuid.uuid4())
+        
+        session_id = session['session_id']
+        
+        # Get or create chatbot for this session
+        if session_id not in chatbot_sessions:
+            chatbot_sessions[session_id] = MedicalChatBot()
+        
+        chatbot = chatbot_sessions[session_id]
+        
+        # Process with conversational AI (maintains context)
+        response = chatbot.process_user_input(user_message)
+        
+        # Return in the format expected by the frontend
+        result = {
+            'type': 'medical_analysis',
+            'response': response
+        }
         
         return jsonify(result)
         
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in analyze endpoint: {error_details}")
+        
         return jsonify({
             'type': 'error',
-            'response': f'Sorry, I encountered an error: {str(e)}'
+            'response': f'Sorry, I encountered an error analyzing your symptoms. Please try again. Error: {str(e)}'
         }), 500
+
+@app.route('/clear_session', methods=['POST'])
+def clear_session():
+    """Clear the current session."""
+    try:
+        if 'session_id' in session:
+            session_id = session['session_id']
+            if session_id in chatbot_sessions:
+                del chatbot_sessions[session_id]
+            session.clear()
+        
+        return jsonify({'status': 'success', 'message': 'Session cleared'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def main():
     """Main function to run the web interface."""
@@ -286,10 +374,11 @@ def main():
     print("🌐 Starting AI Medical Assistant Web Interface...")
     print("📱 Open your browser and go to: http://localhost:5000")
     print("🛑 Press Ctrl+C to stop the server")
+    print("💬 The web interface now maintains conversation context!")
     print("=" * 50)
     
     try:
-        app.run(debug=True, host='0.0.0.0', port=5000)
+        app.run(debug=False, host='0.0.0.0', port=5000)  # Disable debug to avoid restart issues
     except KeyboardInterrupt:
         print("\n👋 Web interface stopped. Goodbye!")
 
